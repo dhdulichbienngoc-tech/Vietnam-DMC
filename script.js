@@ -31,7 +31,7 @@ function parseCSV(csvText) {
   let inQuote = false;
   let currentCell = '';
 
-  for (let char of csvText) {
+  for (let char of csvText + '\n') { // Add trailing \n to handle last line
     if (char === '"' && !inQuote) {
       inQuote = true;
     } else if (char === '"' && inQuote) {
@@ -41,17 +41,15 @@ function parseCSV(csvText) {
       currentCell = '';
     } else if (char === '\n' && !inQuote) {
       currentLine.push(currentCell.trim());
-      lines.push(currentLine);
+      if (currentLine.some(cell => cell !== '')) { // Skip completely empty lines
+        lines.push(currentLine);
+      }
       currentLine = [];
       currentCell = '';
     } else {
       currentCell += char;
     }
   }
-  // Add last cell and line if any
-  if (currentCell) currentLine.push(currentCell.trim());
-  if (currentLine.length) lines.push(currentLine);
-
   return lines;
 }
 
@@ -79,19 +77,23 @@ function generateTable(data) {
   return html;
 }
 
-// Generate accordion cho Packages (detect sections dựa trên cell đầu tiên không rỗng)
+// Generate accordion cho Packages (adjusted for your sheet structure: sections in column B, subs indented)
 function generateAccordion(data) {
   let html = '<div class="accordion" id="packagesAccordion">';
   let currentSection = '';
   let sectionIndex = 0;
+  let inSubTable = false;
 
   for (let i = 0; i < data.length; i++) {
     const row = data[i];
-    if (row[0] && row[0].trim() !== '') { // Section header ở cột đầu
+    // Detect major section (e.g., "Northen Vietnam package" in row[1], empty after)
+    if (row[1] && row[1].trim() !== '' && (!row[2] || row[2].trim() === '') && (!row[4] || row[4].trim() === '')) {
       if (currentSection) {
-        html += '</tbody></table></div></div></div>';
+        if (inSubTable) html += '</tbody></table>';
+        html += '</div></div></div>';
+        inSubTable = false;
       }
-      currentSection = row[0];
+      currentSection = row[1].trim();
       html += `
         <div class="card">
           <div class="card-header" id="heading${sectionIndex}">
@@ -102,23 +104,28 @@ function generateAccordion(data) {
             </h2>
           </div>
           <div id="collapse${sectionIndex}" class="collapse" data-parent="#packagesAccordion">
-            <div class="card-body">
-              <table><tbody>`;
+            <div class="card-body">`;
       sectionIndex++;
     } else if (currentSection) {
-      html += '<tr>';
-      row.forEach(cell => {
-        let value = cell || '';
-        if (value.startsWith('http')) {
-          value = `<a href="${value}" target="_blank">View Details</a>`;
-        }
-        html += `<td>${value}</td>`;
-      });
-      html += '</tr>';
+      // Detect tour sub-header (row[1] filled, link in row[4])
+      if (row[1] && row[1].trim() !== '' && row[4] && row[4].startsWith('http')) {
+        if (inSubTable) html += '</tbody></table>';
+        let tourName = row[1].trim();
+        let tourLink = row[4].trim();
+        html += `<h4>${tourName} - <a href="${tourLink}" target="_blank">View Tour Details</a></h4>`;
+        html += '<table><thead><tr><th>Item</th><th>Price (VND)</th></tr></thead><tbody>'; // Assume 2-column sub table
+        inSubTable = true;
+      } else if (inSubTable && row[4] && row[4].trim() !== '') {
+        // Sub-detail rows (item in row[4], price in row[5])
+        let item = row[4].trim();
+        let price = row[5] ? row[5].trim() : '';
+        html += `<tr><td>${item}</td><td>${price}</td></tr>`;
+      }
     }
   }
   if (currentSection) {
-    html += '</tbody></table></div></div></div>';
+    if (inSubTable) html += '</tbody></table>';
+    html += '</div></div></div>';
   }
   html += '</div>';
   return html;
