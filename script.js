@@ -24,10 +24,35 @@ document.addEventListener('DOMContentLoaded', function() {
   });
 });
 
-// Parse CSV thành array of arrays
+// Parse CSV thành array of arrays (handles quoted fields with commas)
 function parseCSV(csvText) {
-  const lines = csvText.split(/\r?\n/);
-  return lines.map(line => line.split(',').map(cell => cell.trim()));
+  const lines = [];
+  let currentLine = [];
+  let inQuote = false;
+  let currentCell = '';
+
+  for (let char of csvText) {
+    if (char === '"' && !inQuote) {
+      inQuote = true;
+    } else if (char === '"' && inQuote) {
+      inQuote = false;
+    } else if (char === ',' && !inQuote) {
+      currentLine.push(currentCell.trim());
+      currentCell = '';
+    } else if (char === '\n' && !inQuote) {
+      currentLine.push(currentCell.trim());
+      lines.push(currentLine);
+      currentLine = [];
+      currentCell = '';
+    } else {
+      currentCell += char;
+    }
+  }
+  // Add last cell and line if any
+  if (currentCell) currentLine.push(currentCell.trim());
+  if (currentLine.length) lines.push(currentLine);
+
+  return lines;
 }
 
 // Generate table HTML với hyperlinks (nếu cell là URL)
